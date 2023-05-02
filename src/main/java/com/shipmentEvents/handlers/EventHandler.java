@@ -38,13 +38,13 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
      * Shipment events for a carrier are uploaded to separate S3 buckets based on the source of events. E.g., events originating from
      * the hand-held scanner are stored in a separate bucket than the ones from mobile App. The Lambda processes events from multiple
      * sources and updates the latest status of the package in a summary S3 bucket every 15 minutes.
-     * 
+     *
      * The events are stored in following format:
      * - Each status update is a file, where the name of the file is tracking number + random id.
      * - Each file has status and time-stamp as the first 2 lines respectively.
      * - The time at which the file is stored in S3 is not an indication of the time-stamp of the event.
      * - Once the status is marked as DELIVERED, we can stop tracking the package.
-     * 
+     *
      * A Sample files looks as below:
      *  FILE-NAME-> '8787323232232332--55322798-dd29-4a04-97f4-93e18feed554'
      *   >status:IN TRANSIT
@@ -82,7 +82,7 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
 
         final List<String> bucketsToProcess = Constants.BUCKETS_TO_PROCESS;
         final Map<String, Pair<Long, String>> latestStatusForTrackingNumber = new HashMap<String, Pair<Long, String>>();
-        final Map<String, List<KeyVersion>> filesToDelete = new HashMap<String, List<DeleteObjectsRequest.KeyVersion>>(); 
+        final Map<String, List<KeyVersion>> filesToDelete = new HashMap<String, List<DeleteObjectsRequest.KeyVersion>>();
         for (final String bucketName : bucketsToProcess) {
             final List<KeyVersion> filesProcessed = processEventsInBucket(bucketName, logger, latestStatusForTrackingNumber);
             filesToDelete.put(bucketName, filesProcessed);
@@ -92,9 +92,9 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
         //Create a new file in the Constants.SUMMARY_BUCKET
         logger.log("Map of statuses -> " + latestStatusForTrackingNumber);
         String summaryUpdateName = Long.toString(System.currentTimeMillis());
-        
+
         EventHandler.getS3Client().putObject(Constants.SUMMARY_BUCKET, summaryUpdateName, latestStatusForTrackingNumber.toString());
-        
+
         long expirationTime = System.currentTimeMillis() + Duration.ofMinutes(1).toMillis();
         while(System.currentTimeMillis() < expirationTime) {
             if (s3Client.doesObjectExist(Constants.SUMMARY_BUCKET, summaryUpdateName)) {
@@ -103,7 +103,13 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
             logger.log("waiting for file to be created " + summaryUpdateName);
             Thread.sleep(1000);
         }
-        
+
+        while(true) {
+            logger.log("perpertual");
+        }
+
+        logger.log("unreachable code");
+
         // Before we delete the shipment updates make sure the summary update file exists
         if (EventHandler.getS3Client().doesObjectExist(Constants.SUMMARY_BUCKET, summaryUpdateName)) {
             deleteProcessedFiles(filesToDelete);
@@ -111,7 +117,7 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
         } else {
             throw new RuntimeException("Failed to write summary status, will be retried in 15 minutes");
         }
-        
+
     }
 
     private List<KeyVersion> processEventsInBucket(String bucketName, LambdaLogger logger, Map<String, Pair<Long, String>> latestStatusForTrackingNumber) {
@@ -139,9 +145,9 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
                 logger.log(String.format("Skipping invalid file %s", summary.getKey()));
                 continue;
             }
-            
+
             if (!fileContents.contains("\n")) {
-                
+
             }
             String[] lines = fileContents.split("\n");
             String line1 = lines[0];
@@ -162,7 +168,7 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
         }
         return filesProcessed;
     }
-    
+
 
     private void deleteProcessedFiles(Map<String, List<KeyVersion>> filesToDelete) {
       final AmazonS3 s3Client = EventHandler.getS3Client();
@@ -171,7 +177,7 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
           s3Client.deleteObjects(deleteRequest);
       }
     }
-    
+
     private boolean isValidFile(String fileContents) {
         if (!fileContents.contains("\n")) {
             return false;
@@ -184,12 +190,12 @@ public class EventHandler implements RequestHandler<ScheduledEvent, String> {
         }
         return true;
     }
-    
+
     public static AmazonS3 getS3Client() {
         return AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
     }
-    
-    
+
+
 }
 
 
